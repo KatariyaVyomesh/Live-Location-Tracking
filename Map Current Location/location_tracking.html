@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Map with Stations and Routing</title>
+     <!-- leaflet css link -->
+     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+     integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+     crossorigin=""/>
+
+     <!-- leaflet js script -->
+     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+     integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+     crossorigin=""></script>
+     
+
+     <!-- leaflet routing machine css link -->
+     <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.css" />
+
+     <!-- leaflet routing machine js script -->
+     <script src="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.js"></script>
+
+
+    <style>
+             html, body {
+                height: 100%;
+                margin: 0;
+                padding: 0;
+            }
+
+            #map { 
+                height: 90vh; /* Adjusting for heading visibility */
+                width: 100%;
+            }
+
+            h1 {
+                text-align: center;
+                margin: 10px 0;
+            }    
+    </style>
+</head>
+<body>
+    <h1>Map with Stations and Routing</h1>
+    <div id="map"></div>
+    <script>
+        var map = L.map('map').setView([51.505, -0.09], 13);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        }).addTo(map);
+
+
+
+
+        // user location
+        if(!navigator.geolocation){
+            console.log("Your browser doesn't support geolocation feature!")
+        }
+        else{
+            setInterval(()=>{               
+                navigator.geolocation.getCurrentPosition(getPosition)
+            },5000);
+        }
+
+
+        var marker,circle
+        function getPosition(position){
+            const lat=position.coords.latitude;
+            const long = position.coords.longitude;
+            const accuracy=position.coords.accuracy;
+
+            console.log("your coordinate is lat: "+lat+" long: "+long+" Accuracy: "+accuracy);
+
+            map.setView([lat, long], 13);  // Optional: Center map to user's location
+
+            if(marker){
+                map.removeLayer(marker)
+            }
+            if(circle){
+                map.removeLayer(circle)
+            }
+            
+            marker= L.marker([lat, long])   //.addTo(map);
+
+            circle= L.circle([lat, long], {
+                color: 'red',
+                fillColor: '#f03',
+                fillOpacity: 0.5,
+                radius: accuracy
+            })  //.addTo(map);
+
+            var featureGroup = L.featureGroup([marker,circle]).addTo(map)
+
+    
+
+            map.fitBounds(circle.getBounds());  //zoom feature
+        }
+
+
+
+
+
+        // Define the fire station icon
+        var fireStationIcon = L.icon({
+            iconUrl: 'image/fire_station.png', // Update with the correct path
+            iconSize: [70, 70], // Adjust size as needed
+            iconAnchor: [16, 37], // Point of the icon which will correspond to marker's location
+            popupAnchor: [0, -28] // Point from which the popup should open relative to the iconAnchor
+        });
+
+        // Array of station coordinates
+        var stations = [
+            { name: "Station 1", coords: [51.51, -0.1] },
+            { name: "Station 2", coords: [51.52, -0.12] },
+            { name: "Station 3", coords: [51.5, -0.08] }
+        ];
+
+        // Add stations to the map
+        var stationMarkers = [];
+        stations.forEach(function(station) {
+            var marker = L.marker(station.coords, { icon: fireStationIcon })
+                .bindPopup(station.name)
+                .addTo(map);
+            stationMarkers.push(marker);
+        });
+
+
+
+        // Define the car icon
+        var carIcon = L.icon({
+            iconUrl: 'image/car1.png', // Update with the correct path
+            iconSize: [50, 50], // Adjust size as needed
+            iconAnchor: [25, 25] // Centered icon
+        });
+
+        // Function to calculate distance between two points using the Haversine formula
+        function getDistance(lat1, lon1, lat2, lon2) {
+            var R = 6371e3; // Earth's radius in meters
+            var φ1 = lat1 * Math.PI/180;
+            var φ2 = lat2 * Math.PI/180;
+            var Δφ = (lat2 - lat1) * Math.PI/180;
+            var Δλ = (lon2 - lon1) * Math.PI/180;
+
+            var a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
+                    Math.cos(φ1) * Math.cos(φ2) *
+                    Math.sin(Δλ/2) * Math.sin(Δλ/2);
+            var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+
+            return R * c; // Distance in meters
+        }
+
+        // Function to find the nearest station
+        function findNearestStation(lat, lng) {
+            var nearestStation = null;
+            var shortestDistance = Infinity;
+
+            stationMarkers.forEach(function(marker) {
+                var stationLatLng = marker.getLatLng();
+                var distance = getDistance(lat, lng, stationLatLng.lat, stationLatLng.lng);
+                if (distance < shortestDistance) {
+                    shortestDistance = distance;
+                    nearestStation = stationLatLng;
+                }
+            });
+
+            return nearestStation;
+        }
+
+
+
+
+
+
+
+        // Global arrays to store multiple routing controls and car markers
+        var routingControls = [];
+        var carMarkers = [];
+
+        // Destination Icon
+        var destinationIcon = L.icon({
+            iconUrl: 'image/destination.png', 
+            iconSize: [60, 60], 
+            iconAnchor: [30, 60], 
+            popupAnchor: [0, -60] 
+        });
+
+        // Handle map clicks
+        map.on('click', function(e) {
+            var destination = e.latlng;
+            var nearestStation = findNearestStation(destination.lat, destination.lng);
+
+            if (nearestStation) {
+                // Add Destination Marker
+                var destinationMarker = L.marker(destination, { icon: destinationIcon }).addTo(map).bindPopup("Destination").openPopup();
+
+                // Create a new routing control (don't remove previous ones)
+                var routingControl = L.Routing.control({
+                    waypoints: [
+                        L.latLng(nearestStation.lat, nearestStation.lng),
+                        L.latLng(destination.lat, destination.lng)
+                    ],
+                    createMarker: function() { return null; }, // No default markers
+                    routeWhileDragging: false,
+                    addWaypoints: false
+                }).addTo(map);
+
+                routingControls.push(routingControl); // Store for future reference
+
+                // Animate car
+                routingControl.on('routesfound', function(e) {
+                    var route = e.routes[0];
+                    var coordinates = route.coordinates;
+                    var carMarker = L.marker([coordinates[0].lat, coordinates[0].lng], { icon: carIcon }).addTo(map);
+                    carMarkers.push(carMarker); // Store for management
+
+                    var i = 0;
+                    function moveCar() {
+                        if (i < coordinates.length) {
+                            carMarker.setLatLng([coordinates[i].lat, coordinates[i].lng]);
+                            i++;
+                            setTimeout(moveCar, 100); // Speed control
+                        }
+                    }
+                    moveCar();
+                });
+            }
+        });
+
+
+
+
+
+    </script>
+</body>
+</html>

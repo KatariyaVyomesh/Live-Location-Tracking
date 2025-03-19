@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+
+<!-- link of docs :- https://leafletjs.com/examples/quick-start/ -->
+<html>
+    <head>
+        <meta name="viewport" content="width=device-width,initial-scale=1.0">
+        <title>Map User Location</title>
+
+        <!-- leaflet css link -->
+        <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+        crossorigin=""/>
+
+        <!-- leaflet js script -->
+        <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+        crossorigin=""></script>
+        
+
+        <!-- leaflet routing machine css link -->
+        <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.css" />
+
+        <!-- leaflet routing machine js script -->
+        <script src="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.js"></script>
+
+
+
+        <!-- leaflet geolocation -->
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css">
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet.locatecontrol@v0.74.0/dist/L.Control.Locate.min.css" />
+        
+        <script src="https://cdn.jsdelivr.net/npm/leaflet.locatecontrol@v0.74.0/dist/L.Control.Locate.min.js" charset="utf-8"></script>
+        
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css">
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet.locatecontrol@0.74.4/dist/L.Control.Locate.min.css" />
+
+
+
+        <style>
+            html, body {
+                height: 100%;
+                margin: 0;
+                padding: 0;
+            }
+
+            #map { 
+                height: 90vh; /* Adjusting for heading visibility */
+                width: 100%;
+            }
+
+            h1 {
+                text-align: center;
+                margin: 10px 0;
+            }
+        </style>
+
+    </head>
+    <body>
+        <h1>User MAp Location</h1>
+        <div id="map"></div>
+    </body>
+
+    <script>
+        var map = L.map('map').setView([51.505, -0.09], 13);
+
+
+        var tileLayer = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+        }).addTo(map);
+
+
+
+
+
+        // marker icon
+        var car_icon=L.icon({
+            iconUrl:'image/car1.png',
+            iconSize: [70,70]
+
+        })
+
+
+
+
+
+
+        if(!navigator.geolocation){
+            console.log("Your browser doesn't support geolocation feature!")
+        }
+        else{
+            setInterval(()=>{               
+                navigator.geolocation.getCurrentPosition(getPosition)
+            },5000);
+        }
+
+
+        var marker,circle
+        function getPosition(position){
+            const lat=position.coords.latitude;
+            const long = position.coords.longitude;
+            const accuracy=position.coords.accuracy;
+
+            console.log("your coordinate is lat: "+lat+" long: "+long+" Accuracy: "+accuracy);
+
+            map.setView([lat, long], 13);  // Optional: Center map to user's location
+
+            if(marker){
+                map.removeLayer(marker)
+            }
+            if(circle){
+                map.removeLayer(circle)
+            }
+            
+            marker= L.marker([lat, long])   //.addTo(map);
+
+            circle= L.circle([lat, long], {
+                color: 'red',
+                fillColor: '#f03',
+                fillOpacity: 0.5,
+                radius: accuracy
+            })  //.addTo(map);
+
+            var featureGroup = L.featureGroup([marker,circle]).addTo(map)
+
+    
+
+            map.fitBounds(circle.getBounds());  //zoom feature
+        }
+
+
+
+
+        // Routing leaflet machine code start
+        
+        // map on click event to add the marker
+        map.on('click', function(e) {
+            console.log(e);
+
+            // Destination marker (clicked location)
+            var destMarker = L.marker([e.latlng.lat, e.latlng.lng]).addTo(map);
+
+            // Routing control
+            var routingControl = L.Routing.control({
+                waypoints: [
+                    L.latLng(57.74, 11.94), // Starting point (can be made dynamic)
+                    L.latLng(e.latlng.lat, e.latlng.lng)
+                ],
+                createMarker: function() { return null; } // Prevent extra default markers
+            }).addTo(map);
+
+            routingControl.on('routesfound', function(e) {
+                console.log(e);
+
+                // Route details
+                var route = e.routes[0];
+                var coords = route.coordinates;
+
+                // Add a moving car marker (use your custom icon)
+                var movingMarker = L.marker([coords[0].lat, coords[0].lng], {icon: car_icon}).addTo(map);
+
+                // Animate the car along the route
+                coords.forEach(function(coord, index) {
+                    setTimeout(() => {
+                        movingMarker.setLatLng([coord.lat, coord.lng]);
+                    }, 100 * index);
+                });
+
+            });
+        });
+
+
+
+
+
+        // to get the location button
+        L.control.locate().addTo(map);
+
+
+    </script>
+</html>
